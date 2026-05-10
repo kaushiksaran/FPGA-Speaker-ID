@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FPGA Neural Network Speaker ID and FSK Modem</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg:          #090d09;
+  --bg2:         #0d110d;
+  --bg3:         #111611;
+  --bg4:         #161d16;
+  --border:      #1c2a1c;
+  --border2:     #263826;
+  --green:       #00ff88;
+  --green2:      #00cc66;
+  --green3:      rgba(0,255,136,0.10);
+  --green4:      rgba(0,255,136,0.18);
+  --text:        #ddeedd;
+  --text2:       #7fa07f;
+  --text3:       #3d5a3d;
+  --red:         #ff5555;
+  --blue:        #88ccff;
+  --yellow:      #ffdd88;
+  --nav-w:       256px;
+  --hdr-h:       56px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; font-size: 16px; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  line-height: 1.75;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,255,136,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,.025) 1px, transparent 1px);
+  background-size: 36px 36px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ---- HEADER ---- */
+.hdr {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: var(--hdr-h);
+  background: rgba(9,13,9,.93);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 1.75rem; gap: 1rem; z-index: 100;
+}
+.hdr-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .78rem; font-weight: 600;
+  color: var(--green); letter-spacing: .04em;
+}
+.hdr-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .65rem; padding: 2px 8px;
+  border: 1px solid var(--border2);
+  background: var(--green3);
+  color: var(--green); border-radius: 3px;
+}
+.hdr-right {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 1.25rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .72rem; color: var(--text3);
+}
+.dot {
+  display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: blink 2.2s ease-in-out infinite;
+  margin-right: 5px;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+/* ---- LAYOUT ---- */
+.layout {
+  display: flex;
+  min-height: 100vh;
+  padding-top: var(--hdr-h);
+  position: relative; z-index: 1;
+}
+
+/* ---- SIDEBAR ---- */
+.sidebar {
+  width: var(--nav-w);
+  position: fixed; top: var(--hdr-h); left: 0; bottom: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--bg2);
+  padding: 1.75rem 0;
+  z-index: 50;
+}
+.sidebar::-webkit-scrollbar { width: 3px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--border2); }
+
+.nav-group {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .6rem; letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--text3);
+  padding: 0 1.4rem .5rem;
+  margin-top: 1.4rem;
+}
+.nav-group:first-child { margin-top: 0; }
+
+.nl {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .48rem 1.4rem;
+  font-size: .82rem;
+  color: var(--text2);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  transition: all .14s ease;
+  font-family: 'Inter', sans-serif;
+}
+.nl:hover { color: var(--green); background: var(--green3); border-left-color: var(--green2); }
+.nl.active { color: var(--green); background: var(--green3); border-left-color: var(--green); }
+.nl .ico { font-size: .85rem; width: 1.1rem; text-align: center; opacity: .7; }
+.nl .num { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: .6rem; color: var(--text3); }
+
+/* ---- MAIN ---- */
+.main {
+  margin-left: var(--nav-w);
+  flex: 1;
+  padding: 3rem 3.5rem;
+  max-width: 920px;
+}
+
+/* ---- SECTIONS ---- */
+.sec {
+  padding-top: 4rem; padding-bottom: 2.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.sec:last-child { border-bottom: none; }
+
+.sec-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .65rem; color: var(--green);
+  letter-spacing: .1em; text-transform: uppercase;
+  margin-bottom: .4rem;
+}
+.sec h2 {
+  font-size: 1.75rem; font-weight: 700;
+  letter-spacing: -.02em; margin-bottom: 1rem;
+  color: var(--text);
+}
+.sec h3 {
+  font-size: 1rem; font-weight: 600;
+  color: var(--text); margin: 2rem 0 .6rem;
+}
+.sec p {
+  color: var(--text2); font-size: .92rem;
+  margin-bottom: .9rem;
+}
+
+/* ---- HERO ---- */
+.hero { padding-top: 1.5rem; padding-bottom: 3rem; border-bottom: 1px solid var(--border); }
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .72rem; color: var(--green);
+  letter-spacing: .1em; text-transform: uppercase;
+  margin-bottom: 1rem;
+  display: flex; align-items: center; gap: .5rem;
+}
+.eyebrow::before { content: ''; display: inline-block; width: 18px; height: 1px; background: var(--green); }
+.hero h1 {
+  font-size: 2.5rem; font-weight: 700;
+  line-height: 1.15; letter-spacing: -.03em;
+  margin-bottom: 1.1rem;
+  background: linear-gradient(130deg, #ddeedd 0%, #88bb88 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero-sub {
+  font-size: .96rem; color: var(--text2);
+  max-width: 620px; margin-bottom: 1.8rem; line-height: 1.85;
+}
+.tags { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: 1.8rem; }
+.tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .67rem; padding: 3px 9px;
+  border: 1px solid var(--border2);
+  color: var(--text2); background: var(--bg3);
+  border-radius: 3px;
+}
+.tag.hi { border-color: var(--green2); color: var(--green); background: var(--green3); }
+
+.stats {
+  display: grid; grid-template-columns: repeat(5,1fr);
+  gap: 1px; background: var(--border);
+  border: 1px solid var(--border); border-radius: 6px;
+  overflow: hidden; max-width: 700px;
+}
+.stat { background: var(--bg3); padding: .9rem 1rem; text-align: center; }
+.stat-v {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.3rem; font-weight: 600;
+  color: var(--green); display: block;
+}
+.stat-l { font-size: .62rem; color: var(--text3); margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
+
+/* ---- PIPELINE BAR ---- */
+.pipe {
+  display: flex; align-items: stretch;
+  overflow-x: auto; padding: 1.5rem 0;
+  margin: 1.25rem 0; gap: 0;
+}
+.pb {
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: 5px; padding: .65rem .9rem;
+  text-align: center; min-width: 82px; flex-shrink: 0;
+  transition: border-color .15s;
+}
+.pb:hover { border-color: var(--green2); background: var(--bg4); }
+.pb .pi { font-size: 1.1rem; display: block; margin-bottom: .25rem; }
+.pb .pl { font-family: 'JetBrains Mono', monospace; font-size: .65rem; color: var(--green); font-weight: 600; display: block; }
+.pb .ps { font-size: .58rem; color: var(--text3); margin-top: 2px; display: block; }
+.pa { color: var(--green2); font-size: .95rem; padding: 0 .25rem; display: flex; align-items: center; flex-shrink: 0; }
+
+/* ---- CARDS ---- */
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; margin: 1.25rem 0; }
+.card {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 6px; padding: 1.1rem;
+  transition: border-color .18s;
+}
+.card:hover { border-color: var(--border2); }
+.card-lbl { font-family: 'JetBrains Mono', monospace; font-size: .62rem; color: var(--green); text-transform: uppercase; letter-spacing: .09em; margin-bottom: .4rem; }
+.card-ttl { font-size: .88rem; font-weight: 600; color: var(--text); margin-bottom: .35rem; }
+.card p { font-size: .8rem; color: var(--text2); margin: 0; }
+
+/* ---- CODE BLOCK ---- */
+.cb {
+  background: #060a06;
+  border: 1px solid var(--border);
+  border-radius: 6px; padding: 1.1rem 1.4rem;
+  margin: 1rem 0; overflow-x: auto; position: relative;
+}
+.cb::before {
+  content: attr(data-lang);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .58rem; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .1em;
+  position: absolute; top: .5rem; right: .7rem;
+}
+.cb code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .76rem; color: #88cc88;
+  line-height: 1.75; white-space: pre;
+}
+.kw  { color: #66dd99; }
+.cm  { color: #3d5a3d; font-style: italic; }
+.num { color: #88ccff; }
+.str { color: #ffcc88; }
+.op  { color: #88aaff; }
+
+/* ---- TIMING PATH BOX ---- */
+.tp {
+  background: #060a06; border: 1px solid var(--border);
+  border-radius: 6px; padding: 1.3rem 1.5rem;
+  margin: 1rem 0;
+  font-family: 'JetBrains Mono', monospace; font-size: .73rem;
+}
+.tp-lbl { font-size: .6rem; color: var(--text3); text-transform: uppercase; letter-spacing: .1em; margin-bottom: .75rem; }
+.tp-row { display: flex; align-items: center; gap: .4rem; margin-bottom: .35rem; flex-wrap: wrap; }
+.tp-row .arr { color: var(--text3); }
+.bad  { color: var(--red); }
+.good { color: var(--green); }
+.mute { color: var(--text3); font-size: .68rem; }
+
+/* ---- HIGHLIGHT BOX ---- */
+.hbox {
+  border-left: 3px solid var(--green);
+  background: var(--green3); padding: .9rem 1.2rem;
+  border-radius: 0 6px 6px 0; margin: 1.1rem 0;
+}
+.hbox-lbl { font-family: 'JetBrains Mono', monospace; font-size: .62rem; color: var(--green); text-transform: uppercase; letter-spacing: .1em; margin-bottom: .35rem; }
+.hbox p { margin: 0; font-size: .86rem; color: var(--text); }
+
+/* ---- TABLE ---- */
+.dt { width: 100%; border-collapse: collapse; font-size: .8rem; margin: 1rem 0; }
+.dt th { font-family: 'JetBrains Mono', monospace; font-size: .62rem; text-transform: uppercase; letter-spacing: .07em; color: var(--text3); padding: .55rem 1rem; text-align: left; border-bottom: 1px solid var(--border2); }
+.dt td { padding: .6rem 1rem; border-bottom: 1px solid var(--border); color: var(--text2); }
+.dt tr:last-child td { border-bottom: none; }
+.dt tr:hover td { background: var(--green3); color: var(--text); }
+.mono { font-family: 'JetBrains Mono', monospace; font-size: .74rem; }
+.g { color: var(--green); } .r { color: var(--red); } .b { color: var(--blue); }
+
+/* ---- BARS ---- */
+.bar-wrap { margin: .55rem 0; }
+.bar-top { display: flex; justify-content: space-between; font-size: .77rem; color: var(--text2); margin-bottom: .28rem; }
+.bar-top .bv { font-family: 'JetBrains Mono', monospace; color: var(--green); }
+.bar-track { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.bar-fill { height: 100%; background: linear-gradient(90deg, var(--green2), var(--green)); border-radius: 3px; }
+
+/* ---- SVG DIAGRAMS ---- */
+.diagram { margin: 1.5rem 0; }
+.diagram svg { width: 100%; border-radius: 6px; }
+
+/* ---- INLINE CODE ---- */
+ic {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .82rem; color: var(--green);
+  background: var(--green3); padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* ---- TWO-COL STAT ---- */
+.before-after { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; margin-bottom: 1.4rem; }
+.ba-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 1.1rem; }
+.ba-lbl { font-family: 'JetBrains Mono', monospace; font-size: .62rem; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: .4rem; }
+.ba-val { font-size: 1.3rem; font-weight: 700; margin-bottom: .3rem; }
+.ba-sub { font-size: .78rem; color: var(--text2); }
+
+/* ---- FOOTER ---- */
+.ftr {
+  margin-left: var(--nav-w);
+  padding: 1.75rem 3.5rem;
+  border-top: 1px solid var(--border);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .7rem; color: var(--text3);
+  display: flex; justify-content: space-between; align-items: center;
+}
+
+/* ---- RESPONSIVE ---- */
+@media(max-width:768px){
+  :root{ --nav-w:0px; }
+  .sidebar{ display:none; }
+  .main{ margin-left:0; padding:2rem 1.25rem; }
+  .stats{ grid-template-columns:repeat(2,1fr); }
+  .cards{ grid-template-columns:1fr; }
+  .before-after{ grid-template-columns:1fr; }
+  .ftr{ margin-left:0; flex-direction:column; gap:.5rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-title">FPGA Speaker Recognition + FSK Modem</div>
+  <div class="hdr-badge">Verilog · PyTorch · RTL</div>
+  <div class="hdr-right">
+    <span><span class="dot"></span>Artix-7 XC7A35T</span>
+    <span>100 MHz</span>
+  </div>
+</header>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="nav-group">Project</div>
+  <a class="nl active" href="#overview"><span class="ico">◈</span>Overview<span class="num">01</span></a>
+  <a class="nl" href="#architecture"><span class="ico">⬡</span>Architecture<span class="num">02</span></a>
+
+  <div class="nav-group">Signal Processing</div>
+  <a class="nl" href="#preemphasis"><span class="ico">∿</span>Pre-emphasis + Window<span class="num">03</span></a>
+  <a class="nl" href="#fft"><span class="ico">≋</span>FFT + Mel Filterbank<span class="num">04</span></a>
+  <a class="nl" href="#mfcc"><span class="ico">⊞</span>DCT + MFCC<span class="num">05</span></a>
+
+  <div class="nav-group">Inference</div>
+  <a class="nl" href="#nn"><span class="ico">◎</span>Neural Network<span class="num">06</span></a>
+  <a class="nl" href="#timing"><span class="ico">⚡</span>Timing Analysis<span class="num">07</span></a>
+  <a class="nl" href="#training"><span class="ico">▲</span>Training + Results<span class="num">08</span></a>
+
+  <div class="nav-group">Communication</div>
+  <a class="nl" href="#fsk"><span class="ico">⟷</span>FSK Modem<span class="num">09</span></a>
+  <div class="nav-group">Outlook</div>
+  <a class="nl" href="#improvements"><span class="ico">↑</span>Scope for Improvement<span class="num">10</span></a>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- 01 OVERVIEW -->
+<section class="hero" id="overview">
+  <div class="eyebrow">Apr 2026 to May 2026</div>
+  <h1>FPGA Neural Network<br/>Speaker ID + FSK Modem</h1>
+  <p class="hero-sub">
+    A fully hardware-accelerated audio intelligence system on the Basys3 FPGA. Microphone audio passes through a complete signal processing chain: pre-emphasis filtering, Hamming windowing, 512-point FFT, a 26-bin mel filterbank, and DCT to produce 13 MFCC coefficients per frame. A 32-frame sliding window feeds a 2-layer integer neural network for real-time speaker identification. A parallel FSK modem provides LFSR-encrypted inter-FPGA wireless messaging.
+  </p>
+  <div class="tags">
+    <span class="tag hi">Verilog HDL</span>
+    <span class="tag hi">Artix-7 XC7A35T</span>
+    <span class="tag hi">PyTorch</span>
+  </div>
+  <div class="stats" style="grid-template-columns:repeat(4,1fr);max-width:560px;">
+    <div class="stat"><span class="stat-v">85%+</span><span class="stat-l">Val Accuracy</span></div>
+    <div class="stat"><span class="stat-v">416</span><span class="stat-l">NN Inputs</span></div>
+    <div class="stat"><span class="stat-v">320 ms</span><span class="stat-l">Frame Window</span></div>
+    <div class="stat"><span class="stat-v">70 us</span><span class="stat-l">Per Inference</span></div>
+  </div>
+</section>
+
+<!-- 02 ARCHITECTURE -->
+<section class="sec" id="architecture">
+  <div class="sec-tag">// 02</div>
+  <h2>System Architecture</h2>
+  <p>
+    Speak into the microphone. The FPGA processes each 25 ms audio frame through the full signal chain and classifies the speaker every 10 ms. Speaker 1 (Sindhu) is granted access. Speaker 2 (Kaushik) is declined. On a successful identification, the authenticated user can send or receive a message of up to 5 characters over the FSK wireless link. A failed identification triggers a 5-second lockout before a retry is permitted.
+  </p>
+
+  <!-- System flowchart -->
+  <div style="margin:1.5rem 0;">
+    <svg viewBox="0 0 820 340" xmlns="http://www.w3.org/2000/svg" style="width:100%;background:#060a06;border:1px solid #1c2a1c;border-radius:6px;display:block;">
+      <defs>
+        <marker id="arr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <polygon points="0 0, 7 3.5, 0 7" fill="#00cc66"/>
+        </marker>
+        <marker id="arr-r" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <polygon points="0 0, 7 3.5, 0 7" fill="#ff5555"/>
+        </marker>
+      </defs>
+      <!-- styles via inline attrs -->
+
+      <!-- START -->
+      <rect x="330" y="14" width="160" height="34" rx="17" fill="#111611" stroke="#263826" stroke-width="1.5"/>
+      <text x="410" y="36" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="#00ff88">SPEAK INTO MIC</text>
+
+      <!-- arrow down -->
+      <line x1="410" y1="48" x2="410" y2="66" stroke="#00cc66" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- MFCC box -->
+      <rect x="310" y="66" width="200" height="34" rx="4" fill="#111611" stroke="#263826" stroke-width="1.5"/>
+      <text x="410" y="82" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#7fa07f">MFCC PIPELINE</text>
+      <text x="410" y="94" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#3d5a3d">pre-emph / FFT / mel / DCT</text>
+
+      <line x1="410" y1="100" x2="410" y2="118" stroke="#00cc66" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- NN box -->
+      <rect x="310" y="118" width="200" height="34" rx="4" fill="#111611" stroke="#263826" stroke-width="1.5"/>
+      <text x="410" y="134" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#7fa07f">NN INFERENCE</text>
+      <text x="410" y="146" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#3d5a3d">416 inputs, 32-frame window</text>
+
+      <line x1="410" y1="152" x2="410" y2="170" stroke="#00cc66" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- DECISION diamond -->
+      <polygon points="410,170 510,200 410,230 310,200" fill="#111611" stroke="#263826" stroke-width="1.5"/>
+      <text x="410" y="196" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#ddeedd">SPEAKER?</text>
+      <text x="410" y="210" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#3d5a3d">majority vote</text>
+
+      <!-- YES branch: right -->
+      <line x1="510" y1="200" x2="580" y2="200" stroke="#00cc66" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="540" y="213" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#00ff88">Speaker 1</text>
+      <text x="540" y="224" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">(Sindhu)</text>
+
+      <!-- AUTH GRANTED box -->
+      <rect x="580" y="182" width="140" height="36" rx="4" fill="#0d1f0d" stroke="#00cc66" stroke-width="1.5"/>
+      <text x="650" y="198" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#00ff88">ACCESS GRANTED</text>
+      <text x="650" y="211" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">proceed to FSK</text>
+
+      <line x1="650" y1="218" x2="650" y2="250" stroke="#00cc66" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- FSK decision diamond -->
+      <polygon points="650,250 740,275 650,300 560,275" fill="#111611" stroke="#263826" stroke-width="1.5"/>
+      <text x="650" y="271" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#ddeedd">TX or RX?</text>
+      <text x="650" y="284" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#3d5a3d">up to 5 chars</text>
+
+      <!-- TX -->
+      <line x1="740" y1="275" x2="790" y2="275" stroke="#00cc66" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="765" y="269" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#7fa07f">TX</text>
+      <rect x="790" y="261" width="24" height="28" rx="3" fill="#111611" stroke="#263826" stroke-width="1"/>
+      <text x="802" y="279" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#7fa07f">FSK</text>
+
+      <!-- RX -->
+      <line x1="560" y1="275" x2="510" y2="275" stroke="#00cc66" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="535" y="269" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#7fa07f">RX</text>
+      <rect x="486" y="261" width="24" height="28" rx="3" fill="#111611" stroke="#263826" stroke-width="1"/>
+      <text x="498" y="279" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#7fa07f">FSK</text>
+
+      <!-- NO branch: left -->
+      <line x1="310" y1="200" x2="220" y2="200" stroke="#ff5555" stroke-width="1.5" marker-end="url(#arr-r)"/>
+      <text x="265" y="213" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#ff5555">Speaker 2</text>
+      <text x="265" y="224" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">(Kaushik)</text>
+
+      <!-- DENIED box -->
+      <rect x="80" y="182" width="140" height="36" rx="4" fill="#1f0d0d" stroke="#ff5555" stroke-width="1.5"/>
+      <text x="150" y="198" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="#ff5555">ACCESS DENIED</text>
+      <text x="150" y="211" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">5s lockout</text>
+
+      <!-- lockout arrow down then back up to top -->
+      <line x1="150" y1="218" x2="150" y2="310" stroke="#ff5555" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <line x1="150" y1="310" x2="410" y2="310" stroke="#ff5555" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <line x1="410" y1="310" x2="410" y2="232" stroke="#ff5555" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-r)"/>
+      <text x="280" y="325" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#ff5555">retry after 5s</text>
+    </svg>
+  </div>
+
+  <h3>Signal Processing Chain</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin:1.25rem 0;">
+    <!-- Speaker ID vertical pipeline -->
+    <div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--green);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.75rem;">Speaker ID Chain</div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">🎙</span><span><span class="pl" style="display:inline;">MIC</span> <span class="ps" style="display:inline;">UART RX, 16 kHz</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">⊟</span><span><span class="pl" style="display:inline;">DC + PRE-EMPHASIS</span> <span class="ps" style="display:inline;">alpha = 0.969</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">∿</span><span><span class="pl" style="display:inline;">HAMMING WINDOW</span> <span class="ps" style="display:inline;">400 samples, 25 ms</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">≋</span><span><span class="pl" style="display:inline;">512-PT FFT</span> <span class="ps" style="display:inline;">256 useful bins</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">▦</span><span><span class="pl" style="display:inline;">26-BIN MEL FILTERBANK</span> <span class="ps" style="display:inline;">+ log magnitude</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">⊞</span><span><span class="pl" style="display:inline;">DCT-II</span> <span class="ps" style="display:inline;">13 MFCC coefficients</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">▣</span><span><span class="pl" style="display:inline;">32-FRAME BUFFER</span> <span class="ps" style="display:inline;">416 coefficients</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">◎</span><span><span class="pl" style="display:inline;">NN INFERENCE</span> <span class="ps" style="display:inline;">416 - 16 - 2</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;background:var(--bg4);border-color:var(--border2);"><span class="pi">✓</span><span><span class="pl" style="display:inline;">SPEAKER ID</span> <span class="ps" style="display:inline;">logit0 vs logit1</span></span></div>
+      </div>
+    </div>
+    <!-- FSK vertical pipeline -->
+    <div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--green);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.75rem;">FSK Modem Chain</div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">✉</span><span><span class="pl" style="display:inline;">MESSAGE INPUT</span> <span class="ps" style="display:inline;">up to 5 chars, 40 bits</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">🔐</span><span><span class="pl" style="display:inline;">LFSR ENCRYPT</span> <span class="ps" style="display:inline;">seed 0xBEEF, XOR key</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">⬡</span><span><span class="pl" style="display:inline;">FRAME</span> <span class="ps" style="display:inline;">preamble + start + payload</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">⟷</span><span><span class="pl" style="display:inline;">FSK TRANSMIT</span> <span class="ps" style="display:inline;">1 kHz / 2 kHz tones</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;background:var(--bg4);border-color:var(--border2);"><span class="pi">〰</span><span><span class="pl" style="display:inline;">WIRELESS AUDIO LINK</span> <span class="ps" style="display:inline;">inter-FPGA</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">📡</span><span><span class="pl" style="display:inline;">IIR ENVELOPE DETECT</span> <span class="ps" style="display:inline;">dual-tone, hysteresis</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">⬡</span><span><span class="pl" style="display:inline;">PREAMBLE SYNC</span> <span class="ps" style="display:inline;">10101010 + 11111110</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;"><span class="pi">🔐</span><span><span class="pl" style="display:inline;">LFSR DECRYPT</span> <span class="ps" style="display:inline;">same LFSR sequence</span></span></div>
+        <div style="color:var(--green2);font-size:.9rem;line-height:1.2;">↓</div>
+        <div class="pb" style="width:100%;text-align:left;display:flex;align-items:center;gap:.6rem;background:var(--bg4);border-color:var(--border2);"><span class="pi">✓</span><span><span class="pl" style="display:inline;">DECODED MESSAGE</span> <span class="ps" style="display:inline;">plaintext output</span></span></div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- 03 PRE-EMPHASIS + HAMMING -->
+<section class="sec" id="preemphasis">
+  <div class="sec-tag">// 03</div>
+  <h2>Pre-emphasis + Hamming Window</h2>
+  <p>
+    Before any spectral analysis, each audio frame goes through three conditioning stages:
+    DC removal, a first-order high-pass pre-emphasis filter, and a Hamming window applied over
+    400 samples. These stages collectively improve the SNR and spectral resolution of the
+    downstream FFT.
+  </p>
+
+  <h3>DC Removal</h3>
+  <p>
+    The UART mic receiver delivers 12-bit unsigned samples in the range [0, 4095].
+    A fixed offset of 2048 is subtracted to centre the signal around zero before any filtering:
+  </p>
+  <div class="cb" data-lang="verilog">
+    <code><span class="kw">x_dc</span> = sample - <span class="num">2048</span>;   <span class="cm">// 12-bit unsigned -> 16-bit signed, zero-centred</span></code>
+  </div>
+
+  <h3>Pre-emphasis Filter</h3>
+  <p>
+    Human speech has a natural spectral tilt: higher frequencies carry less energy than lower ones. Pre-emphasis applies a first-order high-pass filter that lifts high-frequency components by roughly 6 dB/octave, compensating for this tilt and improving the conditioning of mel filterbank outputs at higher bands.
+  </p>
+  <div class="hbox">
+    <div class="hbox-lbl">Filter Equation</div>
+    <p>y[n] = x[n] - alpha * x[n-1], where alpha = 124/128 = 0.969</p>
+  </div>
+  <p>
+    Alpha is approximated in fixed-point as <ic>124/128</ic>: the previous sample is multiplied by 124
+    and then right-shifted by 7 bits, avoiding any division. The output remains 16-bit signed.
+  </p>
+  <div class="cb" data-lang="verilog">
+    <code><span class="cm">// Fixed-point alpha = 124 >> 7 = 0.96875</span>
+coeff_term = x_prev * <span class="num">124</span>;
+alpha_xprev = coeff_term >>> <span class="num">7</span>;
+y_preemph = x_dc - alpha_xprev;</code>
+  </div>
+
+  <!-- Pre-emphasis frequency response SVG -->
+  <h3>Spectral Effect of Pre-emphasis</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 680 180" xmlns="http://www.w3.org/2000/svg" style="background:#060a06;border:1px solid #1c2a1c;border-radius:6px;">
+      <text x="20" y="22" font-family="JetBrains Mono" font-size="9" fill="#3d5a3d" letter-spacing="1">FREQUENCY RESPONSE (dB)</text>
+      <!-- Grid lines -->
+      <line x1="60" y1="30" x2="660" y2="30" stroke="#1c2a1c" stroke-width="1"/>
+      <line x1="60" y1="60" x2="660" y2="60" stroke="#1c2a1c" stroke-width="1"/>
+      <line x1="60" y1="90" x2="660" y2="90" stroke="#1c2a1c" stroke-width="1"/>
+      <line x1="60" y1="120" x2="660" y2="120" stroke="#1c2a1c" stroke-width="1"/>
+      <line x1="60" y1="150" x2="660" y2="150" stroke="#1c2a1c" stroke-width="1"/>
+      <!-- Y axis labels -->
+      <text x="12" y="33" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">+12</text>
+      <text x="18" y="63" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">+6</text>
+      <text x="24" y="93" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">0</text>
+      <text x="18" y="123" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">-6</text>
+      <text x="12" y="153" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">-12</text>
+      <!-- X axis labels -->
+      <text x="58" y="168" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">0</text>
+      <text x="195" y="168" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">2k</text>
+      <text x="355" y="168" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">4k</text>
+      <text x="510" y="168" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">6k</text>
+      <text x="630" y="168" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">8kHz</text>
+      <!-- Flat (before) line -->
+      <polyline points="60,90 660,90" stroke="#3d5a3d" stroke-width="1.5" stroke-dasharray="4 3" fill="none"/>
+      <text x="460" y="84" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">before (flat)</text>
+      <!-- Pre-emphasis curve (rises ~12dB by 8kHz) -->
+      <polyline points="60,90 100,89 150,87 200,84 260,80 330,75 400,68 480,60 560,51 640,42" stroke="#00ff88" stroke-width="2" fill="none"/>
+      <text x="600" y="38" font-family="JetBrains Mono" font-size="8" fill="#00ff88">+pre-emphasis</text>
+    </svg>
+  </div>
+
+  <h3>Circular Buffer and Hamming Window</h3>
+  <p>
+    Pre-emphasised samples accumulate in a 400-sample circular buffer backed by block RAM.
+    Every 160 new samples (10 ms), a frame trigger fires and the readout FSM sweeps all 400 samples
+    through the Hamming window, then zero-pads to 512 samples for the FFT.
+  </p>
+  <div class="hbox">
+    <div class="hbox-lbl">Frame Parameters</div>
+    <p>Frame length: 400 samples (25 ms at 16 kHz). Hop size: 160 samples (10 ms). Overlap: 60%. Zero-pad to 512 for FFT.</p>
+  </div>
+  <p>
+    Without windowing, the discontinuity at frame edges introduces spurious spectral energy, a phenomenon known as spectral leakage. The Hamming window suppresses this by tapering the signal smoothly to 0.08 at both ends while reaching 1.0 at the centre:
+  </p>
+  <div class="cb" data-lang="math">
+    <code>w[n] = 0.54 - 0.46 * cos(2*pi*n / 399),  n = 0..399
+
+Stored as Q0.15 unsigned in hamming_coeff.hex (400 entries):
+  w[0]   = 0x0A3D   (0.08 * 32767 = 2621)
+  w[199] = 0x7FFF   (1.0  * 32767 = 32767)
+  w[399] = 0x0A3D   (0.08 * 32767 = 2621)
+
+Windowing: windowed[n] = preemph[n] * hamming[n] >> 15</code>
+  </div>
+
+  <!-- Hamming window SVG -->
+  <div class="diagram">
+    <svg viewBox="0 0 680 160" xmlns="http://www.w3.org/2000/svg" style="background:#060a06;border:1px solid #1c2a1c;border-radius:6px;">
+      <text x="20" y="20" font-family="JetBrains Mono" font-size="9" fill="#3d5a3d" letter-spacing="1">HAMMING WINDOW  w(n) = 0.54 - 0.46*cos(2*pi*n/399)</text>
+      <!-- Axes -->
+      <line x1="50" y1="130" x2="650" y2="130" stroke="#1c2a1c" stroke-width="1"/>
+      <line x1="50" y1="30" x2="50" y2="130" stroke="#1c2a1c" stroke-width="1"/>
+      <!-- Y labels -->
+      <text x="16" y="34" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">1.0</text>
+      <text x="16" y="84" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">0.5</text>
+      <text x="16" y="133" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">0.0</text>
+      <!-- X labels -->
+      <text x="45" y="145" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">0</text>
+      <text x="340" y="145" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">200</text>
+      <text x="620" y="145" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">399</text>
+      <!-- Hamming curve -->
+      <path d="M 50,126 C 80,125 120,120 160,108 C 200,96 240,72 280,50 C 300,40 320,34 350,32 C 380,30 400,34 430,42 C 460,52 490,68 530,90 C 570,112 610,122 640,126 L 650,126" stroke="#00ff88" stroke-width="2.5" fill="none"/>
+      <!-- Fill under curve -->
+      <path d="M 50,126 C 80,125 120,120 160,108 C 200,96 240,72 280,50 C 300,40 320,34 350,32 C 380,30 400,34 430,42 C 460,52 490,68 530,90 C 570,112 610,122 640,126 L 650,126 L 650,126 L 50,126 Z" fill="rgba(0,255,136,0.05)"/>
+      <!-- Annotations -->
+      <line x1="350" y1="32" x2="350" y2="130" stroke="#263826" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="320" y="28" font-family="JetBrains Mono" font-size="8" fill="#00cc66">peak=1.0</text>
+      <text x="455" y="80" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">400 samples (25 ms)</text>
+      <!-- zero pad annotation -->
+      <line x1="650" y1="126" x2="680" y2="126" stroke="#263826" stroke-width="1.5" stroke-dasharray="3 2"/>
+      <text x="655" y="120" font-family="JetBrains Mono" font-size="7" fill="#3d5a3d">+112</text>
+      <text x="655" y="130" font-family="JetBrains Mono" font-size="7" fill="#3d5a3d">zeros</text>
+    </svg>
+  </div>
+</section>
+
+<!-- 04 FFT + MEL FILTERBANK -->
+<section class="sec" id="fft">
+  <div class="sec-tag">// 04</div>
+  <h2>FFT + Mel Filterbank</h2>
+
+  <h3>512-Point FFT</h3>
+  <p>
+    The 512 windowed-and-padded samples are fed into the Xilinx FFT v9.1 IP core configured for 16-bit fixed-point complex output. Because the input signal is real-valued, the FFT output is conjugate-symmetric: the upper 256 bins are mirror images of the lower 256 and carry no additional information. Only bins 0..255, covering DC to 8 kHz at a 16 kHz sample rate, are forwarded to the magnitude stage.
+  </p>
+  <p>
+    A Xilinx CORDIC v6.0 IP core converts each complex bin from Cartesian (Re, Im) to polar form.
+    The 16 lower bits of the CORDIC magnitude output are taken as the spectral magnitude for each bin.
+  </p>
+  <div class="hbox">
+    <div class="hbox-lbl">Frequency Resolution</div>
+    <p>Bin width = 16000 / 512 = 31.25 Hz per bin. Useful range: bins 0 to 255, covering 0 to 7968.75 Hz.</p>
+  </div>
+
+  <h3>26-Bin Mel Filterbank</h3>
+  <p>
+    The mel scale is a perceptual frequency scale that approximates how the human ear resolves pitch. It is approximately linear below 1 kHz and logarithmic above. Triangular filters placed on this scale give each mel band a weighted sum of nearby FFT bins, capturing perceptually relevant spectral shape while discarding fine-grained spectral detail.
+  </p>
+  <p>
+    The filterbank uses 26 triangular mel-spaced filters over the range 0 to 8 kHz.
+    The filter weights are precomputed and stored in a 256-entry distributed ROM
+    (<ic>mel_filter_rom.hex</ic>). Each ROM entry encodes the two overlapping mel band
+    indices and the triangular weight for that FFT bin in a packed 26-bit word:
+  </p>
+  <div class="cb" data-lang="rom format">
+    <code><span class="cm">// mel_filter_rom.hex: 256 entries, one per FFT bin 0..255</span>
+<span class="cm">// Each entry: [mel_bank_lo(5b) | mel_bank_hi(5b) | weight_lo(16b)]</span>
+<span class="cm">// mel_wt_hi = 0xFFFF - weight_lo  (complementary triangular weight)</span>
+<span class="cm">// Accumulate: mel_energy[lo] += mag * weight_lo</span>
+<span class="cm">//             mel_energy[hi] += mag * weight_hi</span></code>
+  </div>
+
+  <!-- Mel filterbank SVG -->
+  <div class="diagram">
+    <svg viewBox="0 0 680 200" xmlns="http://www.w3.org/2000/svg" style="background:#060a06;border:1px solid #1c2a1c;border-radius:6px;">
+      <text x="20" y="20" font-family="JetBrains Mono" font-size="9" fill="#3d5a3d" letter-spacing="1">MEL FILTERBANK  (26 triangular filters, 0-8 kHz)</text>
+      <!-- Frequency axis -->
+      <line x1="40" y1="170" x2="660" y2="170" stroke="#1c2a1c" stroke-width="1"/>
+      <text x="35" y="183" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">0</text>
+      <text x="195" y="183" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">2k</text>
+      <text x="355" y="183" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">4k</text>
+      <text x="500" y="183" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">6k</text>
+      <text x="620" y="183" font-family="JetBrains Mono" font-size="8" fill="#3d5a3d">8kHz</text>
+      <!-- Draw mel filterbank triangles. Mel scale compresses higher frequencies. -->
+      <!-- Low freq: narrow, evenly spaced; high freq: wide, compressed together -->
+      <!-- Approximate mel-spaced filter positions (26 filters) -->
+      <!-- Using simplified visual representation -->
+      <defs>
+        <linearGradient id="mg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#00ff88" stop-opacity="0.7"/>
+          <stop offset="100%" stop-color="#00ff88" stop-opacity="0.1"/>
+        </linearGradient>
+      </defs>
+      <!-- Filters: positions roughly mel-spaced from 40 to 660 px -->
+      <!-- Low: tight spacing, High: wider spacing -->
+      <!-- Filter peaks at: 40,60,81,103,127,152,179,208,239,272,308,347,388,432,479,529,582,639 (18 shown) -->
+      <!-- We'll draw 14 representative filters to show the spacing change -->
+      <polygon points="40,170 52,35 64,170" fill="url(#mg)" opacity="0.5"/>
+      <polygon points="52,170 68,35 84,170" fill="url(#mg)" opacity="0.5"/>
+      <polygon points="68,170 87,35 106,170" fill="url(#mg)" opacity="0.5"/>
+      <polygon points="87,170 110,35 133,170" fill="url(#mg)" opacity="0.5"/>
+      <polygon points="110,170 137,35 164,170" fill="url(#mg)" opacity="0.5"/>
+      <polygon points="137,170 169,35 201,170" fill="url(#mg)" opacity="0.5"/>
+      <polygon points="169,170 207,35 245,170" fill="url(#mg)" opacity="0.5"/>
+      <polygon points="207,170 252,35 297,170" fill="url(#mg)" opacity="0.5"/>
+      <polygon points="252,170 304,35 356,170" fill="url(#mg)" opacity="0.5"/>
+      <polygon points="304,170 364,35 424,170" fill="url(#mg)" opacity="0.5"/>
+      <polygon points="364,170 432,35 500,170" fill="url(#mg)" opacity="0.5"/>
+      <polygon points="432,170 507,35 582,170" fill="url(#mg)" opacity="0.5"/>
+      <polygon points="507,170 590,35 660,170" fill="url(#mg)" opacity="0.5"/>
+      <!-- Annotation: narrow spacing at low freq -->
+      <line x1="40" y1="150" x2="84" y2="150" stroke="#263826" stroke-width="1"/>
+      <text x="44" y="148" font-family="JetBrains Mono" font-size="7" fill="#3d5a3d">narrow</text>
+      <!-- Annotation: wide spacing at high freq -->
+      <line x1="432" y1="150" x2="660" y2="150" stroke="#263826" stroke-width="1"/>
+      <text x="510" y="148" font-family="JetBrains Mono" font-size="7" fill="#3d5a3d">wide (log scale)</text>
+      <text x="80" y="30" font-family="JetBrains Mono" font-size="8" fill="#00cc66">26 filters: linear below 1kHz, logarithmic above</text>
+    </svg>
+  </div>
+
+  <h3>Log Magnitude</h3>
+  <p>
+    After accumulation, each of the 26 mel band energies passes through a log2 approximation built from a leading-zero counter (LZC) and a 64-entry fractional lookup table. The result is in Q8.8 unsigned format, covering the full 32-bit dynamic range. Taking the log is standard in MFCC computation because it converts multiplicative gain variations into additive offsets. The DCT then separates those offsets into a low-index cepstral coefficient, which can be discarded without affecting speaker discrimination.
+  </p>
+  <div class="cb" data-lang="verilog">
+    <code><span class="cm">// log2 approximation: LZC + fractional LUT</span>
+integer_part = <span class="num">31</span> - lzc(mel_energy);  <span class="cm">// floor(log2(x))</span>
+mantissa     = mel_energy >> (integer_part - <span class="num">5</span>);
+frac_part    = frac_lut[mantissa[5:0]];  <span class="cm">// 64-entry LUT, 8-bit output</span>
+log_mel[k]   = {integer_part[4:0], frac_part};  <span class="cm">// Q8.8, 16-bit unsigned</span></code>
+  </div>
+</section>
+
+<!-- 05 DCT + MFCC -->
+<section class="sec" id="mfcc">
+  <div class="sec-tag">// 05</div>
+  <h2>DCT-II and MFCC Coefficients</h2>
+  <p>
+    The final stage applies the Discrete Cosine Transform Type-II to the 26 log-mel energies, producing 13 cepstral coefficients. Adjacent mel filters overlap substantially, so their energies are correlated. The DCT decorrelates these outputs into a compact set of orthogonal coefficients that each describe a distinct aspect of the spectral envelope shape.
+  </p>
+  <div class="hbox">
+    <div class="hbox-lbl">DCT-II Formula</div>
+    <p>c[m] = sum over l=0..25 of log_mel[l] * cos(pi * m * (l + 0.5) / 26), for m = 0..12</p>
+  </div>
+  <p>
+    The cosine weights are precomputed as Q1.15 signed integers (scaled by 32767) and stored in a 338-entry ROM (<ic>dct_cos_rom.hex</ic>, 13 x 26 entries). The RTL computes all 13 coefficients sequentially, performing 26 multiply-accumulate operations per coefficient through a single 40-bit signed accumulator to prevent overflow before the final rounding shift.
+  </p>
+  <div class="cb" data-lang="verilog">
+    <code><span class="cm">// 13 passes, 26 MACs each -- dct_cos_rom indexed as (cep_idx * 26) + mel_idx</span>
+acc_40b = 0;
+<span class="kw">for</span> mel_idx = 0..25:
+    cos_w = dct_cos_rom[cep_idx * <span class="num">26</span> + mel_idx];   <span class="cm">// Q1.15 signed</span>
+    acc_40b += (log_mel[mel_idx] >> <span class="num">3</span>) * cos_w;   <span class="cm">// >>3 prevents overflow</span>
+mfcc[cep_idx] = round(acc_40b) >>> <span class="num">8</span>;           <span class="cm">// final scale -> INT32</span></code>
+  </div>
+
+  <h3>Frame to Buffer</h3>
+  <p>
+    Each complete frame produces 13 MFCC coefficients signalled by <ic>mfcc_valid</ic>
+    pulses, with <ic>mfcc_last</ic> marking coefficient 12 (the final one). The
+    <ic>nn_input_buffer</ic> module collects coefficients one by one and on
+    <ic>mfcc_last</ic> shifts the full frame into a 32-frame sliding window register.
+    Once 32 frames have accumulated, <ic>nn_start</ic> pulses every subsequent frame.
+  </p>
+  <div class="cb" data-lang="signals">
+    <code><span class="cm">// nn_input_buffer: 32 x 13 = 416 coefficients, each 32-bit</span>
+mfcc_window_flat[13311:0]  <span class="cm">-- 416 * 32 = 13312 bits total</span>
+nn_start                   <span class="cm">-- 1-cycle pulse per new frame once buffer full</span>
+buffer_full                <span class="cm">-- held high after 32nd frame arrives</span></code>
+  </div>
+</section>
+
+<!-- 06 NEURAL NETWORK -->
+<section class="sec" id="nn">
+  <div class="sec-tag">// 06</div>
+  <h2>Neural Network Inference Engine</h2>
+  <p>
+    The speaker identification network is a 2-layer fully-connected network described entirely in synthesisable Verilog. All arithmetic uses the Artix-7 DSP48 slices in integer mode. No floating-point units are used anywhere in the design.
+  </p>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-lbl">Architecture</div>
+      <div class="card-ttl">FC(416, 16, ReLU) then FC(16, 2)</div>
+      <p>416 normalised INT8 inputs. 16 hidden neurons with ReLU. 2 output logits (one per speaker). argmax(logit0, logit1) gives the speaker ID.</p>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Quantisation</div>
+      <div class="card-ttl">W_SCALE=1024, MAC_SHIFT=10</div>
+      <p>All weights stored as INT16, scaled by 2^10. After MAC accumulation, a right-shift of 10 bits recovers the float-equivalent magnitude before bias addition.</p>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Input Normalisation</div>
+      <div class="card-ttl">Z-score normalisation, INT8 clip</div>
+      <p>Each of the 416 inputs is zero-normalised using a precomputed mean array and a reciprocal-std array (both stored in ROM). Result is clipped to INT8 range [-128, 127].</p>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Inference Latency</div>
+      <div class="card-ttl">~7004 cycles = 70 us at 100 MHz</div>
+      <p>417 norm cycles + 16 x 417 L1 MAC cycles + 2 x 17 L2 cycles + drain/writeback cycles. Comfortably within real-time budget per 10 ms hop.</p>
+    </div>
+  </div>
+
+  <h3>Input Normalisation Pipeline</h3>
+  <p>
+    Before the MAC layers, the raw INT32 MFCC values are normalised. For each of the 416 input
+    features, the precomputed mean is subtracted, then the result is multiplied by the
+    precomputed reciprocal of the standard deviation. The reciprocal is stored in Q0.14 format
+    (scaled by 2^14) so the multiply uses only integer DSP48 operations. The product is shifted
+    right by NORM_SHIFT=14 bits and clipped to INT8.
+  </p>
+  <div class="cb" data-lang="normalisation">
+    <code>x_norm[i] = clip( (mfcc_in[i] - x_mean_rom[i]) * recip_rom[i] >> 14, -128, 127 )
+
+<span class="cm">// x_mean_rom: 416 x INT32  (precomputed per-feature mean)</span>
+<span class="cm">// recip_rom:  416 x 11-bit (precomputed 1/sigma * 2^14, pattern repeats 32x)</span>
+<span class="cm">// NORM_SHIFT = 14</span></code>
+  </div>
+
+  <h3>FSM State Machine</h3>
+  <div class="cb" data-lang="verilog">
+    <code><span class="cm">// 7-state FSM drives the full inference sequence</span>
+<span class="kw">S_IDLE</span>   -- wait for nn_start pulse
+<span class="kw">S_NORM</span>   -- normalise 416 inputs: 3-stage pipeline + 3 drain cycles
+<span class="kw">S_L1_MAC</span> -- MAC: 416 inputs * weight, 2-stage DSP48 pipeline per neuron
+<span class="kw">S_L1_WB</span>  -- write ReLU(acc >> MAC_SHIFT) to l1_out[neuron], advance neuron
+<span class="kw">S_L2_MAC</span> -- MAC: 16 l1_out * w2, same pipeline
+<span class="kw">S_L2_WB</span>  -- write logit0 or logit1
+<span class="kw">S_OUTPUT</span> -- pulse valid=1, return to S_IDLE</code>
+  </div>
+
+  <h3>Memory Layout</h3>
+  <table class="dt">
+    <thead><tr><th>ROM</th><th>Entries</th><th>Width</th><th>Mapping</th></tr></thead>
+    <tbody>
+      <tr><td>w1_rom</td><td class="mono">6656 (16 x 416)</td><td class="mono">INT16</td><td>Block RAM</td></tr>
+      <tr><td>w2_rom</td><td class="mono">32 (2 x 16)</td><td class="mono">INT16</td><td>Distributed LUT</td></tr>
+      <tr><td>x_mean_rom</td><td class="mono">416</td><td class="mono">INT32</td><td>Block RAM</td></tr>
+      <tr><td>recip_rom</td><td class="mono">416</td><td class="mono">11-bit</td><td>Distributed LUT</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 07 TIMING ANALYSIS -->
+<section class="sec" id="timing">
+  <div class="sec-tag">// 07</div>
+  <h2>Timing Analysis and Closure</h2>
+  <p>
+    After initial synthesis, Vivado reported catastrophic timing violations concentrated
+    entirely in the neural network module. The root cause was combinatorial paths that
+    exceeded the 10 ns clock period before reaching DSP48 multiply inputs.
+  </p>
+
+  <div class="before-after">
+    <div class="ba-card">
+      <div class="ba-lbl">Before Fix</div>
+      <div class="ba-val" style="color:var(--red);">TNS: -27,518 ns</div>
+      <div class="ba-sub">WNS -5.1 ns / ~9,751 failing endpoints / all inside nn_inst</div>
+    </div>
+    <div class="ba-card">
+      <div class="ba-lbl">After Fix</div>
+      <div class="ba-val" style="color:var(--green);">TNS: 0 ns</div>
+      <div class="ba-sub">WNS positive / zero failing endpoints / full timing closure</div>
+    </div>
+  </div>
+
+  <h3>Root Cause: Two Critical Paths</h3>
+  <p>
+    Both paths share the same failure mode. A long combinatorial chain arrives at a DSP48 multiply input without being registered first. On Artix-7 at 100 MHz, any combinatorial path through a LUT mux tree or BRAM output that feeds a DSP48 multiply input exceeds the 10 ns budget on its own.
+  </p>
+
+  <div class="tp">
+    <div class="tp-lbl">Path 1: Normalisation multiply (before fix)</div>
+    <div class="tp-row bad">
+      <span>recip_rom[idx]</span><span class="arr">--&gt;</span>
+      <span>LUT mux decode</span><span class="arr">--&gt;</span>
+      <span>DSP48 input A</span><span class="arr">--&gt;</span>
+      <span>multiply</span><span class="arr">--&gt;</span>
+      <span>norm_clipped</span><span class="arr">--&gt;</span>
+      <span>x_norm[slot]</span>
+      <span style="margin-left:auto;color:var(--red);">~14 ns x</span>
+    </div>
+    <div class="tp-lbl" style="margin-top:1rem;">Path 2: L1 MAC multiply (before fix)</div>
+    <div class="tp-row bad">
+      <span>w1_rom[addr]</span><span class="arr">--&gt;</span>
+      <span>BRAM output</span><span class="arr">--&gt;</span>
+      <span>DSP48 input A</span>
+      <span style="margin-left:auto;color:var(--red);">~12 ns x</span>
+    </div>
+    <div class="tp-row bad" style="margin-top:.2rem;">
+      <span>x_norm[idx]</span><span class="arr">--&gt;</span>
+      <span>416-entry LUT mux tree</span><span class="arr">--&gt;</span>
+      <span>DSP48 input B</span>
+      <span style="margin-left:auto;color:var(--red);">~11 ns x</span>
+    </div>
+  </div>
+
+  <h3>Fix: 2-Stage Registered Pipelines</h3>
+  <p>
+    The principle is to ensure both DSP48 multiply inputs are registered flip-flop outputs before the multiply fires. A flip-flop output has near-zero setup path, so the LUT mux tree and BRAM read latency are absorbed in the preceding cycle.
+  </p>
+
+  <div class="tp">
+    <div class="tp-lbl">Normalisation path after fix (3 pipeline stages)</div>
+    <div class="tp-row good"><span>Stage 1:</span><span>diff + index registered into norm_diff_r, norm_idx_r</span></div>
+    <div class="tp-row good"><span>Stage 2:</span><span>recip_rom[norm_idx_r] registered into recip_r</span><span class="mute">(LUT decode absorbed)</span></div>
+    <div class="tp-row good"><span>Stage 3:</span><span>norm_diff_r2 * recip_r registered into norm_prod_r</span><span style="margin-left:auto;color:var(--green);">~7 ns ok</span></div>
+    <div class="tp-row mute" style="margin-top:.6rem;">+ 3 drain cycles at end of S_NORM to flush all pipeline stages before S_L1_MAC</div>
+  </div>
+
+  <div class="tp">
+    <div class="tp-lbl">L1 MAC path after fix (2 pipeline stages on both DSP inputs)</div>
+    <div class="tp-row good"><span>Stage 1:</span><span>w1_rom[addr] registered into w1_val_r</span><span class="mute">(BRAM sync read, 1 cycle)</span></div>
+    <div class="tp-row good"><span>Stage 2:</span><span>w1_val_r into w1_val_r2; x_norm[idx_br] registered into xn_r</span><span class="mute">(mux tree settles)</span></div>
+    <div class="tp-row good"><span>Stage 3:</span><span>w1_val_r2 * xn_r registered into mac_r</span><span style="margin-left:auto;color:var(--green);">~8 ns ok</span></div>
+    <div class="tp-row mute" style="margin-top:.6rem;">mac_idx_r resets to sentinel 9'h1FF rather than 0, preventing false accumulation on the first cycle of S_L1_MAC</div>
+  </div>
+</section>
+
+<!-- 08 TRAINING -->
+<section class="sec" id="training">
+  <div class="sec-tag">// 08</div>
+  <h2>Training and Results</h2>
+  <p>
+    The model was trained in PyTorch on MFCC data captured directly from the FPGA via the Vivado Integrated Logic Analyzer (ILA). Training on ILA data is critical: every training sample has passed through the same RTL signal processing chain as inference, so the training distribution includes all fixed-point rounding artefacts from the hardware.
+  </p>
+
+  <h3>Data Collection via ILA</h3>
+  <p>
+    A Python host script streams live microphone audio over UART to the FPGA, which runs
+    the full RTL MFCC pipeline. The ILA is configured to capture <ic>mfcc_frame_flat[13311:0]</ic>
+    (the full 416-coefficient window) whenever <ic>nn_start</ic> pulses. Each ILA export
+    is a CSV file with one window per row. This ensures every training sample has passed
+    through the exact same FFT, mel filterbank, DCT, and fixed-point arithmetic as inference.
+  </p>
+  <div class="cards">
+    <div class="card">
+      <div class="card-lbl">Training Data</div>
+      <div class="card-ttl">2 speakers, 2 sessions each</div>
+      <p>k_p1.csv, k_p2.csv (Kaushik) and s_p1.csv, s_p2.csv (Sindhu). ILA-captured MFCC windows from the FPGA in live conditions.</p>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Windowing</div>
+      <div class="card-ttl">8-frame windows, stride 1</div>
+      <p>Training uses 8-frame x 13-coeff = 104-dimensional windows with stride 1 for maximum data augmentation. The FPGA inference uses the full 32-frame window (416 dims).</p>
+    </div>
+    <div class="card">
+      <div class="card-lbl">PyTorch Model</div>
+      <div class="card-ttl">Linear(416,16) ReLU Linear(16,2)</div>
+      <p>Adam optimiser (lr=1e-3, weight_decay=1e-4), StepLR scheduler (step 50, gamma 0.5), CrossEntropyLoss, 200 epochs, batch size 64.</p>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Validation</div>
+      <div class="card-ttl">80/20 train/val split</div>
+      <p>A golden model test verifies bit-exact match between PyTorch INT16 arithmetic and the manual fixed-point simulation before writing the hex weight files.</p>
+    </div>
+  </div>
+
+  <h3>Quantisation and Export</h3>
+  <p>
+    After training converges in float32, the weights are quantised post-training. The
+    quantisation scheme mirrors the hardware fixed-point format exactly so that inference
+    on the FPGA produces the same classification as the PyTorch integer model.
+  </p>
+  <div class="cb" data-lang="python">
+    <code><span class="cm"># W_SCALE = 1024 = 2^10  (matches MAC_SHIFT=10 in RTL)</span>
+w1_int = np.clip(np.round(w1_float * <span class="num">1024</span>), -<span class="num">32767</span>, <span class="num">32767</span>).astype(np.int16)
+w2_int = np.clip(np.round(w2_float * <span class="num">1024</span>), -<span class="num">32767</span>, <span class="num">32767</span>).astype(np.int16)
+<span class="cm"># Biases scaled by W_SCALE^2 because the hardware accumulates before shifting</span>
+b1_int = np.clip(np.round(b1_float * <span class="num">1024</span>**<span class="num">2</span>), -(2**<span class="num">31</span>), 2**<span class="num">31</span>-<span class="num">1</span>).astype(np.int32)
+
+<span class="cm"># Normalisation: recip_rom = round(127.0 * 2^14 / X_std)</span>
+recip_vals = np.round(<span class="num">127.0</span> * <span class="num">2</span>**<span class="num">14</span> / X_std).astype(np.int32)
+
+<span class="cm"># Write hex files for $readmemh in Verilog</span>
+np.savetxt(<span class="str">"speaker_id_w1_new.hex"</span>, w1_int & <span class="num">0xFFFF</span>, fmt=<span class="str">"%04x"</span>)
+np.savetxt(<span class="str">"speaker_id_w2_new.hex"</span>, w2_int & <span class="num">0xFFFF</span>, fmt=<span class="str">"%04x"</span>)</code>
+  </div>
+
+  <h3>Accuracy</h3>
+  <div class="bar-wrap">
+    <div class="bar-top"><span>Overall Validation Accuracy</span><span class="bv">85%+</span></div>
+    <div class="bar-track"><div class="bar-fill" style="width:85%"></div></div>
+  </div>
+  <div class="bar-wrap">
+    <div class="bar-top"><span>Speaker 0 (Kaushik)</span><span class="bv">~87%</span></div>
+    <div class="bar-track"><div class="bar-fill" style="width:87%"></div></div>
+  </div>
+  <div class="bar-wrap">
+    <div class="bar-top"><span>Speaker 1 (Sindhu)</span><span class="bv">~83%</span></div>
+    <div class="bar-track"><div class="bar-fill" style="width:83%"></div></div>
+  </div>
+
+  <div class="hbox" style="margin-top:1.5rem;">
+    <div class="hbox-lbl">Volume Robustness Issue and Fix</div>
+    <p>
+      Early training on HOLD data recorded at 5x higher volume than live inference caused MFCC coeff[0]
+      (log-energy, highly volume-dependent) to dominate classification. The model would always predict
+      one speaker regardless of audio content. The fix was to train on ILA-captured live FPGA output
+      and to analyse per-coefficient standard deviation ratios (live vs. hold) to identify and drop the
+      four most volume-correlated coefficients (0, 4, 5, 9), replacing them with the nine most stable ones.
+    </p>
+  </div>
+</section>
+
+<!-- 09 FSK MODEM -->
+<section class="sec" id="fsk">
+  <div class="sec-tag">// 09</div>
+  <h2>FSK Modem</h2>
+  <p>
+    A parallel FSK (Frequency Shift Keying) modem enables encrypted inter-FPGA wireless messaging.
+    The transmitter generates audio tones, the receiver demodulates them via IIR envelope detection,
+    and a frame synchroniser recovers the byte-aligned payload.
+  </p>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-lbl">Modulation</div>
+      <div class="card-ttl">Binary FSK: 1000 Hz / 2000 Hz</div>
+      <p>Bit 0: ~1000 Hz (16 samples/cycle at 16 kHz). Bit 1: ~2000 Hz (8 samples/cycle). Each bit lasts 160 samples = 10 ms. Tone waveforms from an 8-entry sine LUT.</p>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Encryption</div>
+      <div class="card-ttl">LFSR XOR, seed 0xBEEF</div>
+      <p>16-bit LFSR with polynomial taps [15,13,11,0]. The LFSR is run 12 times to generate a 40-bit key, which is XOR'd with the payload before transmission and again on receive to decrypt.</p>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Frame Format</div>
+      <div class="card-ttl">56 bits total, 560 ms</div>
+      <p>8-bit preamble (10101010) for carrier detect, 8-bit start flag (11111110) for byte alignment, and a 40-bit LFSR-encrypted payload. Total duration: 560 ms at 10 ms per bit.</p>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Receiver</div>
+      <div class="card-ttl">Dual IIR envelope detection</div>
+      <p>Two independent IIR filters (alpha=1/16) track the rectified energy of the high (2k Hz) and low (1k Hz) tones. Bit decision by comparing both envelopes with a configurable hysteresis threshold.</p>
+    </div>
+  </div>
+
+  <h3>Frame Structure</h3>
+  <div class="cb" data-lang="frame">
+    <code><span class="cm">// Total: 56 bits @ 10ms/bit = 560 ms per frame</span>
+[ <span class="kw">8-bit preamble</span>: 10101010 ]     <span class="cm">-- carrier detect, edge synchronisation</span>
+[ <span class="kw">8-bit start flag</span>: 11111110 ]    <span class="cm">-- frame alignment marker</span>
+[ <span class="kw">40-bit payload</span>: XOR(data, key) ] <span class="cm">-- LFSR-encrypted message</span>
+
+<span class="cm">// LFSR key generation</span>
+seed = <span class="num">0xBEEF</span>                       <span class="cm">-- 16-bit initial state</span>
+taps = [15, 13, 11, 0]              <span class="cm">-- feedback polynomial</span>
+<span class="cm">// Run 12 shifts -> collect 3 x 16-bit states (+ upper 8 bits) = 40-bit key</span>
+key  = {lfsr11, lfsr11, lfsr11[15:8]}</code>
+  </div>
+
+  <h3>Receiver FSM and IIR Detection</h3>
+  <p>
+    The receiver runs two IIR envelope filters in parallel. One is tuned to the energy pattern of the 2 kHz tone via consecutive sample differences, and the other targets the 1 kHz tone via 2-sample stride differences. Each filter implements an exponential moving average with alpha ~1/16 as a single right-shift, requiring no division logic.
+  </p>
+  <div class="cb" data-lang="verilog">
+    <code><span class="cm">// IIR envelope: alpha = 1/16 (one shift operation, no division)</span>
+env_hi = env_hi - (env_hi >>> <span class="num">4</span>) + abs(sample[n] - sample[n-1]);  <span class="cm">// 2 kHz</span>
+env_lo = env_lo - (env_lo >>> <span class="num">4</span>) + abs(sample[n] - sample[n-2]);  <span class="cm">// 1 kHz</span>
+
+<span class="cm">// Bit decision with hysteresis (default: deadzone=15, thresh=300)</span>
+<span class="kw">if</span>      (env_hi > env_lo + env_thresh): bit = 1;
+<span class="kw">else if</span> (env_lo > env_hi + env_thresh): bit = 0;
+<span class="kw">else</span>:                                   hold previous bit;</code>
+  </div>
+
+  <div class="hbox">
+    <div class="hbox-lbl">Sensitivity Profiles</div>
+    <p>
+      Four sensitivity modes are selectable via FPGA switches at runtime:
+      Normal (deadzone=15, thresh=300),
+      High Sensitivity (deadzone=8, thresh=100),
+      Noise Reject (deadzone=30, thresh=800),
+      Debug/Max (deadzone=4, thresh=50).
+      This allows adaptation to different acoustic environments without recompiling.
+    </p>
+  </div>
+
+  <h3>Preamble Synchronisation</h3>
+  <p>
+    The receiver FSM starts in S_IDLE, waiting for a rising edge on the decoded bit stream.
+    In S_HUNT it clocks in bits looking for the start byte pattern (11111110) to establish
+    byte alignment, with a timeout of 45 bit periods to prevent lockup on noise.
+    Once the start byte is detected, S_RECEIVE collects the 40 payload bits, and the
+    decoded data is XOR'd with the same LFSR key to recover the plaintext message.
+  </p>
+  <p>
+    The design includes forward key ratcheting. Every successfully acknowledged transmission advances the LFSR seed by running it through several more shift iterations, producing a new XOR key for the next frame. Because both FPGAs apply the same deterministic LFSR sequence independently, they stay synchronised without ever exchanging the key explicitly. A replayed frame from a previous exchange carries a stale key and decrypts to garbage, providing replay protection over the wireless link.
+  </p>
+</section>
+
+<!-- 10 SCOPE FOR IMPROVEMENT -->
+<section class="sec" id="improvements">
+  <div class="sec-tag">// 10</div>
+  <h2>Scope for Improvement</h2>
+  <p>
+    The current system is functional but constrained by the experimental hardware and dataset size. Several clear directions exist for making it more robust and accurate.
+  </p>
+
+  <h3>Hardware</h3>
+  <div class="hbox">
+    <strong>Dedicated microphone module.</strong> The laptop UART path introduces non-deterministic latency: USB buffers, OS scheduling, and the USB-to-serial bridge all add variable delay between audio capture and FPGA ingestion. A microphone connected directly to the FPGA GPIO would eliminate this jitter entirely, giving the pipeline a truly synchronous sample stream at a fixed 16 kHz with no dropped or duplicated samples.
+  </div>
+
+  <h3>Neural Network and Training</h3>
+  <div class="hbox">
+    <strong>More training data.</strong> The current model is trained on a limited number of ILA-captured utterances. Increasing the dataset to several hundred labelled frames per speaker, covering different vocal effort levels, ambient noise conditions, and microphone distances, would significantly improve generalisation and reduce the chance of misclassification at the boundary.
+  </div>
+  <div class="hbox" style="margin-top:.75rem;">
+    <strong>More speakers.</strong> The current architecture outputs a 2-class softmax. Extending to N speakers requires only widening the output layer and retraining; the FPGA datapath is otherwise unchanged. A rejection class (none of the above) would also make the system safer for real deployment.
+  </div>
+
+  <h3>FSK Modem</h3>
+  <div class="hbox">
+    <strong>Error correction.</strong> The current frame has no forward error correction. Adding a simple Hamming(7,4) or CRC-8 check over the 40-bit payload would let the receiver detect and optionally correct single-bit errors introduced by acoustic noise on the wireless link.
+  </div>
+  <div class="hbox" style="margin-top:.75rem;">
+    <strong>Forward ratcheting robustness.</strong> The LFSR ratchet currently relies on both FPGAs receiving a clean ACK. A missed ACK causes key desynchronisation. The RX FPGA could assert an explicit acknowledgement signal back to the TX once a frame is successfully decoded; both sides only advance the LFSR after that confirmation, keeping the keys in lockstep even across noisy transmissions.
+  </div>
+</section>
+
+</main>
+</div>
+
+<!-- FOOTER -->
+<footer class="ftr">
+  <span>Kaushik Saravanan / FPGA Speaker Recognition + FSK Modem / 2026</span>
+  <span>Artix-7 XC7A35T / 100 MHz / RTL</span>
+</footer>
+
+<script>
+const sections = document.querySelectorAll('section[id]');
+const links    = document.querySelectorAll('.nl');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const a = document.querySelector(`.nl[href="#${e.target.id}"]`);
+      if (a) a.classList.add('active');
+    }
+  });
+}, { rootMargin: '-25% 0px -65% 0px' });
+sections.forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>
