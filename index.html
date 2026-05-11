@@ -505,7 +505,7 @@ ic {
     </svg>
   </div>
 
-  <h3>Signal Processing Chain</h3>
+  <h3>Hardware Pipeline Overview</h3>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin:1.25rem 0;">
     <!-- Speaker ID vertical pipeline -->
     <div>
@@ -1043,11 +1043,8 @@ np.savetxt(<span class="str">"speaker_id_w2_new.hex"</span>, w2_int & <span clas
   <div class="hbox" style="margin-top:1.5rem;">
     <div class="hbox-lbl">Volume Robustness Issue and Fix</div>
     <p>
-      Early training on HOLD data recorded at 5x higher volume than live inference caused MFCC coeff[0]
-      (log-energy, highly volume-dependent) to dominate classification. The model would always predict
-      one speaker regardless of audio content. The fix was to train on ILA-captured live FPGA output
-      and to analyse per-coefficient standard deviation ratios (live vs. hold) to identify and drop the
-      four most volume-correlated coefficients (0, 4, 5, 9), replacing them with the nine most stable ones.
+      A training vs. inference volume mismatch caused MFCC coeff[0] (log-energy) to dominate classification, making the model always predict one speaker. The fix was to train exclusively on ILA-captured live FPGA output
+      and to drop the four most volume-correlated coefficients (0, 4, 5, 9), using the nine most stable ones instead.
     </p>
   </div>
 </section>
@@ -1174,7 +1171,7 @@ env_lo = env_lo - (env_lo >>> <span class="num">4</span>) + abs(sample[n] - samp
 
 <!-- FOOTER -->
 <footer class="ftr">
-  <span>Kaushik Saravanan / FPGA Speaker Recognition + FSK Modem / 2026</span>
+  <span>Kaushik Saravanan &amp; Sindhu Yazhini Vanchinathan / FPGA Speaker Recognition + FSK Modem / 2026</span>
   <span>Artix-7 XC7A35T / 100 MHz / RTL</span>
 </footer>
 
